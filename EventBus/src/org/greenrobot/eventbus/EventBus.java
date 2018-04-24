@@ -38,7 +38,9 @@ import java.util.logging.Level;
  */
 public class EventBus {
 
-    /** Log tag, apps may override it. */
+    /**
+     * Log tag, apps may override it.
+     */
     public static String TAG = "EventBus";
 
     static volatile EventBus defaultInstance;
@@ -76,7 +78,13 @@ public class EventBus {
     private final int indexCount;
     private final Logger logger;
 
-    /** Convenience singleton for apps using a process-wide EventBus instance. */
+    /**
+     * Ly__获取默认实例， 单例
+     * 模式,也可以通过构造方法创建。
+     * <p>
+     * Convenience singleton for apps using a process-wide EventBus instance.
+     */
+
     public static EventBus getDefault() {
         EventBus instance = defaultInstance;
         if (instance == null) {
@@ -94,7 +102,9 @@ public class EventBus {
         return new EventBusBuilder();
     }
 
-    /** For unit test primarily. */
+    /**
+     * For unit test primarily.
+     */
     public static void clearCaches() {
         SubscriberMethodFinder.clearCaches();
         eventTypesCache.clear();
@@ -130,6 +140,8 @@ public class EventBus {
     }
 
     /**
+     * //注册，将一个对象注册到事件总线中
+     * <p>
      * Registers the given subscriber to receive events. Subscribers must call {@link #unregister(Object)} once they
      * are no longer interested in receiving events.
      * <p/>
@@ -138,8 +150,11 @@ public class EventBus {
      * ThreadMode} and priority.
      */
     public void register(Object subscriber) {
+        //获取对象的类型
         Class<?> subscriberClass = subscriber.getClass();
+        //获得 订阅封装类 List
         List<SubscriberMethod> subscriberMethods = subscriberMethodFinder.findSubscriberMethods(subscriberClass);
+//       遍历订阅封装类，逐个调用subscribe订阅
         synchronized (this) {
             for (SubscriberMethod subscriberMethod : subscriberMethods) {
                 subscribe(subscriber, subscriberMethod);
@@ -148,9 +163,18 @@ public class EventBus {
     }
 
     // Must be called in synchronized block
+
+    /**
+     *
+     * @param subscriber
+     * @param subscriberMethod
+     */
     private void subscribe(Object subscriber, SubscriberMethod subscriberMethod) {
+//      获取到订阅的事件类型（通过Class类区分）
         Class<?> eventType = subscriberMethod.eventType;
+//       将订阅封装类和订阅对象 再次封装
         Subscription newSubscription = new Subscription(subscriber, subscriberMethod);
+//        从MAP中获取该事件类型的订阅列表，如果没有，则创建，并添加到MAP中
         CopyOnWriteArrayList<Subscription> subscriptions = subscriptionsByEventType.get(eventType);
         if (subscriptions == null) {
             subscriptions = new CopyOnWriteArrayList<>();
@@ -162,6 +186,7 @@ public class EventBus {
             }
         }
 
+//    按优先级将 新订阅封装类添加到该事件类型的订阅列表中。
         int size = subscriptions.size();
         for (int i = 0; i <= size; i++) {
             if (i == size || subscriberMethod.priority > subscriptions.get(i).subscriberMethod.priority) {
@@ -170,13 +195,17 @@ public class EventBus {
             }
         }
 
+//      通过订阅对象，获取该订阅对象所对应的订阅事件列表。 如果没有，则创建，并添加到MAP中
         List<Class<?>> subscribedEvents = typesBySubscriber.get(subscriber);
         if (subscribedEvents == null) {
             subscribedEvents = new ArrayList<>();
             typesBySubscriber.put(subscriber, subscribedEvents);
         }
+
+//      将该事件加入订阅
         subscribedEvents.add(eventType);
 
+//        判断是否粘性事件
         if (subscriberMethod.sticky) {
             if (eventInheritance) {
                 // Existing sticky events of all subclasses of eventType have to be considered.
@@ -187,6 +216,7 @@ public class EventBus {
                 for (Map.Entry<Class<?>, Object> entry : entries) {
                     Class<?> candidateEventType = entry.getKey();
                     if (eventType.isAssignableFrom(candidateEventType)) {
+//                       从stickyEvent中获取对应的事件交给当前事件订阅者处理
                         Object stickyEvent = entry.getValue();
                         checkPostStickyEventToSubscription(newSubscription, stickyEvent);
                     }
@@ -220,7 +250,9 @@ public class EventBus {
         return typesBySubscriber.containsKey(subscriber);
     }
 
-    /** Only updates subscriptionsByEventType, not typesBySubscriber! Caller must update typesBySubscriber. */
+    /**
+     * Only updates subscriptionsByEventType, not typesBySubscriber! Caller must update typesBySubscriber.
+     */
     private void unsubscribeByEventType(Object subscriber, Class<?> eventType) {
         List<Subscription> subscriptions = subscriptionsByEventType.get(eventType);
         if (subscriptions != null) {
@@ -237,7 +269,9 @@ public class EventBus {
         }
     }
 
-    /** Unregisters the given subscriber from all event classes. */
+    /**
+     * Unregisters the given subscriber from all event classes.
+     */
     public synchronized void unregister(Object subscriber) {
         List<Class<?>> subscribedTypes = typesBySubscriber.get(subscriber);
         if (subscribedTypes != null) {
@@ -250,12 +284,15 @@ public class EventBus {
         }
     }
 
-    /** Posts the given event to the event bus. */
+    /**
+     * Posts the given event to the event bus.
+     */
     public void post(Object event) {
+        //获取当前线程状态和事件列表，并且将事件加入列表中。
         PostingThreadState postingState = currentPostingThreadState.get();
         List<Object> eventQueue = postingState.eventQueue;
         eventQueue.add(event);
-
+//      如果不是在posting中，则执行
         if (!postingState.isPosting) {
             postingState.isMainThread = isMainThread();
             postingState.isPosting = true;
@@ -264,9 +301,11 @@ public class EventBus {
             }
             try {
                 while (!eventQueue.isEmpty()) {
+//                    开始一个个post 分发列表中的事件
                     postSingleEvent(eventQueue.remove(0), postingState);
                 }
             } finally {
+//              posting完后，取消标记
                 postingState.isPosting = false;
                 postingState.isMainThread = false;
             }
@@ -388,6 +427,7 @@ public class EventBus {
         } else {
             subscriptionFound = postSingleEventForEventType(event, postingState, eventClass);
         }
+//        如果没有事件，则会发布一个NoSubscriberEvent
         if (!subscriptionFound) {
             if (logNoSubscriberMessages) {
                 logger.log(Level.FINE, "No subscribers registered for event " + eventClass);
@@ -399,20 +439,32 @@ public class EventBus {
         }
     }
 
+    /**
+     *
+     * @param event
+     * @param postingState
+     * @param eventClass
+     * @return 是否有事件
+     */
     private boolean postSingleEventForEventType(Object event, PostingThreadState postingState, Class<?> eventClass) {
         CopyOnWriteArrayList<Subscription> subscriptions;
+//      获取到该事件对应的订阅列表（存着订阅封装类）
         synchronized (this) {
             subscriptions = subscriptionsByEventType.get(eventClass);
         }
+//        遍历订阅封装类，进行下发
         if (subscriptions != null && !subscriptions.isEmpty()) {
             for (Subscription subscription : subscriptions) {
+//              将post的参数传给postingState
                 postingState.event = event;
                 postingState.subscription = subscription;
                 boolean aborted = false;
                 try {
+//                   进行具体下发事件
                     postToSubscription(subscription, event, postingState.isMainThread);
                     aborted = postingState.canceled;
                 } finally {
+//             一个post完后，清除 postingState中的数据
                     postingState.event = null;
                     postingState.subscription = null;
                     postingState.canceled = false;
@@ -426,6 +478,12 @@ public class EventBus {
         return false;
     }
 
+    /**
+     * 开始下发事件，并且根据ThreadMode作不同的下发处理
+     * @param subscription
+     * @param event
+     * @param isMainThread
+     */
     private void postToSubscription(Subscription subscription, Object event, boolean isMainThread) {
         switch (subscription.subscriberMethod.threadMode) {
             case POSTING:
@@ -461,7 +519,9 @@ public class EventBus {
         }
     }
 
-    /** Looks up all Class objects including super classes and interfaces. Should also work for interfaces. */
+    /**
+     * Looks up all Class objects including super classes and interfaces. Should also work for interfaces.
+     */
     private static List<Class<?>> lookupAllEventTypes(Class<?> eventClass) {
         synchronized (eventTypesCache) {
             List<Class<?>> eventTypes = eventTypesCache.get(eventClass);
@@ -479,7 +539,9 @@ public class EventBus {
         }
     }
 
-    /** Recurses through super interfaces. */
+    /**
+     * Recurses through super interfaces.
+     */
     static void addInterfaces(List<Class<?>> eventTypes, Class<?>[] interfaces) {
         for (Class<?> interfaceClass : interfaces) {
             if (!eventTypes.contains(interfaceClass)) {
@@ -540,7 +602,9 @@ public class EventBus {
         }
     }
 
-    /** For ThreadLocal, much faster to set (and get multiple values). */
+    /**
+     * For ThreadLocal, much faster to set (and get multiple values).
+     */
     final static class PostingThreadState {
         final List<Object> eventQueue = new ArrayList<>();
         boolean isPosting;

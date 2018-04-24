@@ -41,7 +41,7 @@ class SubscriberMethodFinder {
     private List<SubscriberInfoIndex> subscriberInfoIndexes;
     private final boolean strictMethodVerification;
     private final boolean ignoreGeneratedIndex;
-
+    //   缓存大小
     private static final int POOL_SIZE = 4;
     private static final FindState[] FIND_STATE_POOL = new FindState[POOL_SIZE];
 
@@ -53,11 +53,12 @@ class SubscriberMethodFinder {
     }
 
     List<SubscriberMethod> findSubscriberMethods(Class<?> subscriberClass) {
+//      判断是否有缓存，有的话直接返回缓存信息
         List<SubscriberMethod> subscriberMethods = METHOD_CACHE.get(subscriberClass);
         if (subscriberMethods != null) {
             return subscriberMethods;
         }
-
+//        无缓存，则开始遍历类中的方法，生成订阅封装类的列表。
         if (ignoreGeneratedIndex) {
             subscriberMethods = findUsingReflection(subscriberClass);
         } else {
@@ -67,14 +68,30 @@ class SubscriberMethodFinder {
             throw new EventBusException("Subscriber " + subscriberClass
                     + " and its super classes have no public methods with the @Subscribe annotation");
         } else {
+//            将遍历生成的订阅封装类，缓存在MAP中
             METHOD_CACHE.put(subscriberClass, subscriberMethods);
             return subscriberMethods;
         }
     }
 
+    private List<SubscriberMethod> findUsingReflection(Class<?> subscriberClass) {
+        //获取一个FindState
+        FindState findState = prepareFindState();
+        //传入当前类
+        findState.initForSubscriber(subscriberClass);
+        //循环遍历，子类遍历完后，继续检查父类中的方法
+        while (findState.clazz != null) {
+            findUsingReflectionInSingleClass(findState);
+            findState.moveToSuperclass();
+        }
+        return getMethodsAndRelease(findState);
+    }
+
+    //    3.0新加，比反射快，编译期完成的注册，不是运行期
     private List<SubscriberMethod> findUsingInfo(Class<?> subscriberClass) {
         FindState findState = prepareFindState();
         findState.initForSubscriber(subscriberClass);
+        //用于循环遍历，子类遍历完后，继续遍历父类
         while (findState.clazz != null) {
             findState.subscriberInfo = getSubscriberInfo(findState);
             if (findState.subscriberInfo != null) {
@@ -92,9 +109,17 @@ class SubscriberMethodFinder {
         return getMethodsAndRelease(findState);
     }
 
+    /**
+     * 获取FindState中的订阅封装类 列表，并且返回给调用者
+     * @param findState
+     * @return
+     */
     private List<SubscriberMethod> getMethodsAndRelease(FindState findState) {
+//        获取FindState中 封装好的 SubscriberMethod类 的列表
         List<SubscriberMethod> subscriberMethods = new ArrayList<>(findState.subscriberMethods);
+//        清除FindState类中的信息
         findState.recycle();
+        //遍历，如果有位置，则将FindState放入（缓存），配合prepareFindState
         synchronized (FIND_STATE_POOL) {
             for (int i = 0; i < POOL_SIZE; i++) {
                 if (FIND_STATE_POOL[i] == null) {
@@ -106,6 +131,7 @@ class SubscriberMethodFinder {
         return subscriberMethods;
     }
 
+    //    尝试获取FindState对象，如果获取不到，则创建一个对象。避免重复new
     private FindState prepareFindState() {
         synchronized (FIND_STATE_POOL) {
             for (int i = 0; i < POOL_SIZE; i++) {
@@ -137,16 +163,10 @@ class SubscriberMethodFinder {
         return null;
     }
 
-    private List<SubscriberMethod> findUsingReflection(Class<?> subscriberClass) {
-        FindState findState = prepareFindState();
-        findState.initForSubscriber(subscriberClass);
-        while (findState.clazz != null) {
-            findUsingReflectionInSingleClass(findState);
-            findState.moveToSuperclass();
-        }
-        return getMethodsAndRelease(findState);
-    }
-
+    /**
+     * 开始遍历类中的方法
+     * @param findState
+     */
     private void findUsingReflectionInSingleClass(FindState findState) {
         Method[] methods;
         try {
@@ -157,16 +177,22 @@ class SubscriberMethodFinder {
             methods = findState.clazz.getMethods();
             findState.skipSuperClasses = true;
         }
+        //开始遍历所有方法
         for (Method method : methods) {
             int modifiers = method.getModifiers();
+            //判断是否public，检查修饰符
             if ((modifiers & Modifier.PUBLIC) != 0 && (modifiers & MODIFIERS_IGNORE) == 0) {
+                //获取参数列表
                 Class<?>[] parameterTypes = method.getParameterTypes();
+                //要求参数仅为1个
                 if (parameterTypes.length == 1) {
+                    //通过注解，获取信息
                     Subscribe subscribeAnnotation = method.getAnnotation(Subscribe.class);
                     if (subscribeAnnotation != null) {
                         Class<?> eventType = parameterTypes[0];
                         if (findState.checkAdd(method, eventType)) {
                             ThreadMode threadMode = subscribeAnnotation.threadMode();
+                            //将注解等数据封装成 SubscriberMethod 类，然后加到findState中的List里
                             findState.subscriberMethods.add(new SubscriberMethod(method, eventType, threadMode,
                                     subscribeAnnotation.priority(), subscribeAnnotation.sticky()));
                         }
