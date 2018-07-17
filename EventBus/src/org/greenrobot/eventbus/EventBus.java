@@ -141,7 +141,7 @@ public class EventBus {
     }
 
     /**
-     * //注册，将一个对象注册到事件总线中
+     * 注册，将一个对象注册到事件总线中
      * <p>
      * Registers the given subscriber to receive events. Subscribers must call {@link #unregister(Object)} once they
      * are no longer interested in receiving events.
