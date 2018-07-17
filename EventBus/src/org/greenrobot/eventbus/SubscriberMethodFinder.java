@@ -52,6 +52,11 @@ class SubscriberMethodFinder {
         this.ignoreGeneratedIndex = ignoreGeneratedIndex;
     }
 
+    /**
+     * 进行注解方法查找
+     * @param subscriberClass
+     * @return
+     */
     List<SubscriberMethod> findSubscriberMethods(Class<?> subscriberClass) {
 //      判断是否有缓存，有的话直接返回缓存信息
         List<SubscriberMethod> subscriberMethods = METHOD_CACHE.get(subscriberClass);
