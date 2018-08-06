@@ -73,7 +73,7 @@ public class EventBus {
     private final boolean logNoSubscriberMessages;
     private final boolean sendSubscriberExceptionEvent;
     private final boolean sendNoSubscriberEvent;
-//  默认为true，即EventBus会考虑事件的继承树
+    //  默认为true，即EventBus会考虑事件的继承树
     private final boolean eventInheritance;
 
     private final int indexCount;
@@ -166,7 +166,6 @@ public class EventBus {
     // Must be called in synchronized block
 
     /**
-     *
      * @param subscriber
      * @param subscriberMethod
      */
@@ -180,6 +179,7 @@ public class EventBus {
         if (subscriptions == null) {
             subscriptions = new CopyOnWriteArrayList<>();
             subscriptionsByEventType.put(eventType, subscriptions);
+
         } else {
 //            判断新订阅对象是否已存在，若已经存在，则抛出异常
             if (subscriptions.contains(newSubscription)) {
@@ -304,8 +304,7 @@ public class EventBus {
 //            循环遍历，直到列表中无事件
             try {
                 while (!eventQueue.isEmpty()) {
-//                    开始发布一个事件
-                    postSingleEvent(eventQueue.remove(0), postingState);
+                    postSingleEvent(eventQueue.remove(0), postingState);// 开始发布一个事件
                 }
             } finally {
 //              posting完后，取消标记
@@ -443,7 +442,6 @@ public class EventBus {
     }
 
     /**
-     *
      * @param event
      * @param postingState
      * @param eventClass
@@ -467,7 +465,7 @@ public class EventBus {
                     postToSubscription(subscription, event, postingState.isMainThread);
                     aborted = postingState.canceled;
                 } finally {
-//             一个post完后，清除 postingState中的数据
+//                  一个post完后，清除 postingState中的数据
                     postingState.event = null;
                     postingState.subscription = null;
                     postingState.canceled = false;
@@ -483,6 +481,7 @@ public class EventBus {
 
     /**
      * 开始下发事件，并且根据ThreadMode作不同的下发处理
+     *
      * @param subscription
      * @param event
      * @param isMainThread
