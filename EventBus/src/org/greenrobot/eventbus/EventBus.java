@@ -416,12 +416,20 @@ public class EventBus {
         return false;
     }
 
+    /**
+     *
+     * @param event 事件类型
+     * @param postingState 线程状态信息
+     * @throws Error
+     */
     private void postSingleEvent(Object event, PostingThreadState postingState) throws Error {
         Class<?> eventClass = event.getClass();
         boolean subscriptionFound = false;
         if (eventInheritance) {
+            //获取当前event的类以及其父类和实现接口的Class信息
             List<Class<?>> eventTypes = lookupAllEventTypes(eventClass);
             int countTypes = eventTypes.size();
+            // 将当前类，父类，接口类的事件都发送给订阅者
             for (int h = 0; h < countTypes; h++) {
                 Class<?> clazz = eventTypes.get(h);
                 subscriptionFound |= postSingleEventForEventType(event, postingState, clazz);
@@ -442,15 +450,16 @@ public class EventBus {
     }
 
     /**
-     * @param event
-     * @param postingState
-     * @param eventClass
+     * @param event 事件
+     * @param postingState 线程信息
+     * @param eventClass 对应要通知的类
      * @return 是否有事件
      */
     private boolean postSingleEventForEventType(Object event, PostingThreadState postingState, Class<?> eventClass) {
         CopyOnWriteArrayList<Subscription> subscriptions;
 //      获取到该事件对应的订阅列表（存着订阅封装类）
         synchronized (this) {
+            //获取事件类对应的事件注册列表（event本身的，event父类的，event接口的）
             subscriptions = subscriptionsByEventType.get(eventClass);
         }
 //        遍历订阅封装类，进行下发
